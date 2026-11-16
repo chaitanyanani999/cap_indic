@@ -1,4 +1,6 @@
-# IVR Outreach
+# IVR Outreach (cap_indic)
+
+Repository: https://github.com/chaitanyanani999/cap_indic
 
 An admin web app and API for sending automated voice (IVR) calls that read out an organisation-configured prompt to groups of contacts (users, friends, MLAs, MPs and so on). Phase 1 covers outbound prompt delivery with consent, retries and a dashboard. Phase 2 (recording replies, speech-to-text, LLM analysis and validation) is planned and not included.
 
@@ -38,7 +40,7 @@ Dockerfile         Container image
 Requires Python 3.12 or newer.
 
 ```bash
-git clone <your-repo-url> && cd <repo-folder>
+git clone https://github.com/chaitanyanani999/cap_indic.git && cd cap_indic
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                  # then edit the secrets
@@ -81,26 +83,35 @@ All routes except login, the webhook and audio need the header `Authorization: B
 
 ## Publish the code to GitHub
 
-GitHub stores and builds the code. It does not run this app, because GitHub Pages only serves static files. See [Hosting](#host-the-running-app) for where to run it.
+The repository `chaitanyanani999/cap_indic` already exists and has a `main` branch with a `README.md`. These steps add the project to it without rewriting its history. GitHub stores and builds the code; it does not run this app, because GitHub Pages only serves static files. See [Host the running app](#host-the-running-app).
 
-1. **Install and sign in.** Install Git, create a GitHub account, and optionally install the GitHub CLI (`gh`).
-2. **Check nothing secret is included.** `.gitignore` already excludes `.env`, `*.db` and `audio/`. Run `git status` after `git add .` and confirm none of them are listed.
-3. **Create the repository.** Make it **private**. This app handles phone numbers and consent records, so keep the code and any sample data private until you decide otherwise.
-   - With the CLI: `gh repo create ivr-outreach --private --source=. --remote=origin`
-   - Or on github.com: New repository, choose Private, leave the README, .gitignore and licence options empty.
-4. **Commit and push.**
+1. **Install and sign in.** Install Git, and optionally the GitHub CLI (`gh auth login`).
+2. **Make the repository private.** On github.com open the repo, then Settings, General, Danger Zone, Change visibility. This app handles phone numbers and consent records, so keep it private unless you decide otherwise.
+3. **Clone it.**
    ```bash
-   git init -b main
-   git add .
-   git commit -m "Initial commit: IVR outreach phase 1"
-   git remote add origin https://github.com/<your-user>/ivr-outreach.git   # skip if gh already added it
-   git push -u origin main
+   git clone https://github.com/chaitanyanani999/cap_indic.git
+   cd cap_indic
    ```
-5. **Confirm CI passes.** Open the Actions tab. The `CI` workflow installs dependencies and checks that the app imports.
-6. **Protect the main branch.** Settings, Branches, add a rule for `main` that requires a pull request and the `CI` check before merging.
-7. **Store secrets in GitHub, not in code.** Settings, Secrets and variables, Actions. Add `SECRET`, `ADMIN_PASS`, `WEBHOOK_SECRET`, and later the provider keys, if a workflow or deployment needs them.
-8. **Turn on security features.** Settings, Code security: enable secret scanning, push protection and Dependabot alerts.
-9. **If a secret is ever committed,** rotate it immediately. Deleting the file in a later commit does not remove it from history.
+4. **Look at what is already there.** Run `ls` and read the old `README.md`. Copy anything you want to keep (for example into `docs/old-readme.md`) before the next step replaces it.
+5. **Copy the project in.** Unzip `ivr-app.zip`, then copy everything, including hidden files, into the clone:
+   ```bash
+   unzip ~/Downloads/ivr-app.zip -d /tmp
+   cp -R /tmp/ivr-app/. .
+   ```
+   Files with the same names (`README.md`, and possibly `requirements.txt` or `.gitignore`) are overwritten. Use `git diff` to review the changes.
+6. **Check nothing secret is included.** `.gitignore` excludes `.env`, `*.db` and `audio/`. Run `git status` and confirm none of them are listed.
+7. **Commit and push.** Do not force-push.
+   ```bash
+   git add .
+   git commit -m "Add IVR outreach app (phase 1) and update README"
+   git push origin main
+   ```
+   If the push is rejected, run `git pull --rebase origin main`, resolve any conflicts, then push again.
+8. **Confirm CI passes.** Open the Actions tab. The `CI` workflow installs dependencies and checks that the app imports.
+9. **Protect the main branch.** Settings, Branches, add a rule for `main` that requires a pull request and the `CI` check before merging.
+10. **Store secrets in GitHub, not in code.** Settings, Secrets and variables, Actions. Add `SECRET`, `ADMIN_PASS`, `WEBHOOK_SECRET`, and later the provider keys, if a workflow or deployment needs them.
+11. **Turn on security features.** Settings, Code security: enable secret scanning, push protection and Dependabot alerts.
+12. **If a secret is ever committed,** rotate it immediately. Deleting the file in a later commit does not remove it from history.
 
 ## Host the running app
 
@@ -123,11 +134,11 @@ Menu names differ between platforms, so follow each platform's own documentation
 ### Option B: Your own server (VPS)
 
 ```bash
-git clone https://github.com/<your-user>/ivr-outreach.git && cd ivr-outreach
+git clone https://github.com/chaitanyanani999/cap_indic.git && cd cap_indic
 cp .env.example .env && nano .env
-docker build -t ivr-outreach .
+docker build -t cap-indic .
 docker run -d --name ivr --restart unless-stopped --env-file .env -p 127.0.0.1:8000:8000 \
-  -v ivr_audio:/srv/audio ivr-outreach
+  -v ivr_audio:/srv/audio cap-indic
 ```
 
 Put a reverse proxy with automatic HTTPS in front of port 8000 (Caddy or Nginx with Let's Encrypt), and point your domain at the server. To update: `git pull`, rebuild the image, and restart the container.
@@ -169,6 +180,7 @@ Open the repo in a Codespace, follow the local steps, and make port 8000 public 
 | Contacts skipped | No consent, DND on a promotional campaign, or the 3-calls-in-24-hours cap |
 | Provider cannot fetch audio or send callbacks | `PUBLIC_URL` is not a public HTTPS address, or the webhook secret does not match |
 | Data disappears after a redeploy | SQLite or the audio folder is on a temporary disk. Use Postgres and a persistent disk. |
+| `git push` is rejected | The remote has newer commits. Run `git pull --rebase origin main`, then push again |
 | Login fails after a restart | `SECRET` changed. Tokens signed with the old value are rejected, so log in again. |
 
 ## Roadmap
