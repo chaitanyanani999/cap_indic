@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IVR Outreach Admin</title>
+<style>
+body{font:15px/1.5 system-ui,sans-serif;margin:0;background:#eef1f4;color:#14212b}main{max-width:1000px;margin:auto;padding:16px}
+.c{background:#fff;border:1px solid #d5dce2;border-radius:8px;padding:14px;margin-bottom:14px}h1{font-size:21px}h2{font-size:16px;margin:0 0 8px}
+input,select,textarea,button{font:inherit;padding:6px 8px;margin:2px;border:1px solid #c3ccd4;border-radius:6px}button{background:#1f5fbf;color:#fff;border:0;cursor:pointer}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 7px;border-bottom:1px solid #e3e8ec;font-size:14px}.s{overflow-x:auto}.m{color:#5d6b77;font-size:13px}
+</style></head><body><main>
+<h1>IVR Outreach Admin</h1>
+<div class="c" id="lg"><h2>Log in</h2><input id="u" placeholder="Username" value="admin"><input id="p" type="password" placeholder="Password"><button onclick="login()">Log in</button> <span id="e" class="m"></span></div>
+<div id="app" hidden>
+<div class="c"><h2>Dashboard</h2><div id="st"></div></div>
+<div class="c"><h2>DLT gate (pilot unlocks when all are done)</h2><div id="gt"></div></div>
+<div class="c"><h2>New campaign</h2><input id="kn" placeholder="Name"><select id="kg"><option>Users</option><option>Friends</option><option>MLAs</option><option>MPs</option></select>
+<select id="kc"><option>transactional</option><option>promotional</option></select><select id="km"><option>sandbox</option><option>pilot</option></select>
+<select id="kr"><option>0</option><option selected>1</option><option>2</option><option>3</option></select><br><textarea id="kp" rows="3" style="width:95%" placeholder="Prompt read to the contact"></textarea><br><button onclick="addK()">Create campaign</button></div>
+<div class="c"><h2>Campaigns</h2><div id="ks" class="s"></div></div>
+<div class="c"><h2>Contacts</h2><input id="cn" placeholder="Name"><input id="cp" placeholder="+91…"><select id="cg"><option>Users</option><option>Friends</option><option>MLAs</option><option>MPs</option></select>
+<label><input type="checkbox" id="cc">Consent</label><label><input type="checkbox" id="cd">DND</label><button onclick="addC()">Add</button>
+<details><summary class="m">Import CSV (name,phone,group,consent,purpose,dnd)</summary><textarea id="ci" rows="4" style="width:95%"></textarea><br><button onclick="imp()">Import</button></details><div id="cs" class="s"></div></div>
+<div class="c"><h2>Call log</h2><div id="cl" class="s"></div></div></div>
+<script>
+let T="";const $=i=>document.getElementById(i);const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function api(p,m="GET",b){const r=await fetch(p,{method:m,headers:{"Content-Type":"application/json",Authorization:"Bearer "+T},body:b?JSON.stringify(b):undefined});const d=await r.json();if(!r.ok){alert(d.detail||r.status);throw 0}return d}
+async function login(){const r=await fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:$("u").value,password:$("p").value})});
+ if(!r.ok){$("e").textContent="Wrong username or password.";return}T=(await r.json()).token;$("lg").hidden=true;$("app").hidden=false;load();setInterval(load,3000)}
+const tbl=(h,rows)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr>${rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("")}</table>`;
+async function load(){
+ const [s,g,k,c,l]=await Promise.all([api("/stats"),api("/roadmap"),api("/campaigns"),api("/contacts"),api("/calls")]);
+ $("st").innerHTML=`Provider: <b>${s.provider}</b> · Answer rate: <b>${s.answer_rate}%</b> · `+Object.entries(s.by_status).map(([a,b])=>`${a}: ${b}`).join(", ");
+ const L={pe:"Principal Entity registered",hdr:"Voice header approved",tpl:"Templates approved",num:"Production number assigned"};
+ $("gt").innerHTML=Object.entries(g).map(([a,b])=>`<label><input type="checkbox" ${b?"checked":""} onchange="api('/roadmap','PUT',{key:'${a}',done:this.checked})"> ${L[a]}</label> `).join("");
+ $("ks").innerHTML=tbl(["Name","Group","Type","Mode","Audio","Status",""],k.map(x=>[esc(x.name),x.group_name,x.category,x.mode,x.audio_id?x.audio_secs+"s":"-",x.status,
+  `<button onclick="act('/campaigns/${x.id}/render')">Render audio</button><button onclick="act('/campaigns/${x.id}/launch')">Launch</button>`]));
+ $("cs").innerHTML=tbl(["Name","Phone","Group","Consent","DND",""],c.map(x=>[esc(x.name),esc(x.phone),x.group_name,x.consent?"Yes, "+x.consent_purpose+" "+(x.consent_at||"").slice(0,10):"No",x.dnd?"DND":"",
+  `<button onclick="act('/contacts/${x.id}/consent',{given:${!x.consent}})">${x.consent?"Revoke":"Record consent"}</button><button onclick="if(confirm('Remove?'))api('/contacts/${x.id}','DELETE').then(load)">Remove</button>`]));
+ $("cl").innerHTML=l.length?tbl(["Campaign","Contact","Attempt","Status","Note","Run at"],l.map(x=>[esc(x.campaign),esc(x.contact),x.attempt,x.status,esc(x.note),x.run_at.slice(0,19)])):'<span class="m">No calls yet. Render a campaign’s audio, then launch it.</span>'}
+async function act(p,b){const r=await api(p,"POST",b);if(r.queued!==undefined)alert(`Queued ${r.queued}, skipped ${r.skipped}`);load()}
+async function addK(){await api("/campaigns","POST",{name:$("kn").value,prompt:$("kp").value,group_name:$("kg").value,category:$("kc").value,mode:$("km").value,max_retries:+$("kr").value});load()}
+async function addC(){await api("/contacts","POST",{name:$("cn").value,phone:$("cp").value,group_name:$("cg").value,consent:$("cc").checked,dnd:$("cd").checked});load()}
+async function imp(){const r=await api("/contacts/import","POST",{csv:$("ci").value});alert(`Added ${r.added}, duplicates ${r.duplicates}, invalid ${r.invalid}`);load()}
+</script></main></body></html>
